@@ -475,6 +475,15 @@ class NuvolaApi:
                     f"({type(err).__name__})."
                 ) from err
 
+    @staticmethod
+    def _safe_endpoint(path: str) -> str:
+        """Remove student identifiers and dates from endpoint diagnostics."""
+        return re.sub(
+            r"/(?:\d{1,2}-\d{1,2}-\d{4}|\d+)(?=/|$)",
+            "/{value}",
+            path,
+        )
+
     async def _request(
         self,
         method: str,
@@ -488,6 +497,7 @@ class NuvolaApi:
 
         session = await self._ensure_session()
         headers = {"Authorization": f"Bearer {self.jwt}"}
+        safe_endpoint = self._safe_endpoint(path)
 
         try:
             async with session.request(
@@ -508,19 +518,19 @@ class NuvolaApi:
 
                 if resp.status == 403:
                     raise NuvolaApiError(
-                        "Nuvola ha negato l'accesso alla risorsa."
+                        f"Nuvola HTTP 403: accesso negato su {safe_endpoint}."
                     )
 
                 if resp.status == 404:
                     raise NuvolaApiError(
-                        f"Risorsa Nuvola non trovata: {path}"
+                        f"Risorsa Nuvola non trovata: {safe_endpoint}"
                     )
 
                 if resp.status >= 400:
                     # Avoid logging or displaying the response body: it may
                     # contain personal or session information.
                     raise NuvolaApiError(
-                        f"Nuvola HTTP {resp.status} su {path}."
+                        f"Nuvola HTTP {resp.status} su {safe_endpoint}."
                     )
 
                 return await resp.json(content_type=None)
@@ -533,7 +543,7 @@ class NuvolaApi:
             ) from err
         except Exception as err:
             raise NuvolaApiError(
-                f"Errore di rete su {path} ({type(err).__name__})."
+                f"Errore di rete su {safe_endpoint} ({type(err).__name__})."
             ) from err
 
     @staticmethod
