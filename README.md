@@ -42,8 +42,8 @@ username e password. Se l'account ha più studenti, scegli quali aggiungere.
 
 ## Diagnostica API protetta (facoltativa)
 
-La diagnostica introdotta nel fork \`EnrCol\` funziona esclusivamente con il logger
-\`custom_components.nuvola.api\` impostato su \`DEBUG\`. A livello di log normale
+La diagnostica introdotta nel fork `EnrCol` funziona esclusivamente con il logger
+`custom_components.nuvola.api` impostato su `DEBUG`. A livello di log normale
 non cambia il comportamento dell'integrazione.
 
 Per ogni endpoint **già interrogato** dall'integrazione, la diagnostica indica
@@ -54,22 +54,24 @@ Non vengono registrati identificativi, nomi degli studenti, date delle richieste
 credenziali, token, URL completi, corpi di risposta, descrizioni o allegati.
 
 La diagnostica non esegue richieste aggiuntive. In particolare, gli argomenti
-delle lezioni (\`get_lessons\`) non saranno osservabili finché il coordinatore
+delle lezioni (`get_lessons`) non saranno osservabili finché il coordinatore
 non utilizzerà quel metodo in una modifica successiva.
 
 ## Risoluzione dei problemi
 
-Se il login fallisce, il messaggio indica il passo che si è interrotto. Per più dettagli, in
-`configuration.yaml`:
+Se il login fallisce, il messaggio indica il passo che si è interrotto.
+Per attivare **soltanto la diagnostica API** in `configuration.yaml`:
 
 ```yaml
 logger:
   logs:
-    custom_components.nuvola: debug
+    custom_components.nuvola.api: debug
 ```
 
-Nei log vengono scritti solo host e percorso degli indirizzi, ma **controlla sempre cosa pubblichi**
-prima di allegare un log a una segnalazione: può contenere nomi degli studenti.
+La diagnostica aggiunta registra solo struttura e disponibilità delle risposte.
+**Altri messaggi di login preesistenti** possono contenere informazioni del portale:
+controlla sempre i log prima di condividerli. Disattiva il livello `DEBUG`
+quando hai terminato le verifiche.
 
 ## Privacy
 
