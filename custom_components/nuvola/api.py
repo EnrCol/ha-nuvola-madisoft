@@ -17,6 +17,35 @@ from .const import API_BASE, BASE_URL, REQUEST_TIMEOUT
 _LOGGER = logging.getLogger(__name__)
 
 
+_SCHEMA_FIELDS: dict[str, tuple[str, ...]] = {
+    # These are fixed code-defined names, not keys copied into logs
+    # from a school response. Never log arbitrary JSON keys or values.
+    "students": ("id", "nomeCompleto", "classe", "scuola"),
+    "periods": ("id", "nome", "corrente"),
+    "votes": ("materia", "media", "voti"),
+    "homework": (
+        "materia", "docente", "descrizione", "descrizioneCompito",
+        "testo", "testoCompito", "contenuto", "compito", "argomento",
+        "attivita", "dataConsegna", "allegati",
+    ),
+    "lessons": (
+        "materia", "docente", "argomento", "descrizione", "testo",
+        "contenuto", "data", "allegati",
+    ),
+    "events": (
+        "nome", "tipo", "descrizione", "dataInizio", "dataFine",
+        "annotazioni", "materia", "visto", "allegati",
+    ),
+    "absences": ("tipo", "data", "giustificata", "descrizione"),
+    "notes": ("tipo", "data", "descrizione", "materia"),
+    "notifications": ("count", "conteggio", "numero"),
+    "payments": (
+        "tassa", "rata", "importo", "statoPagamento",
+        "dataScadenzaRata", "dataPagamento", "pagabileOnline",
+    ),
+}
+
+
 class NuvolaAuthError(Exception):
     """Authentication flow failure (not necessarily wrong credentials)."""
 
@@ -488,6 +517,83 @@ class NuvolaApi:
             path,
         )
 
+    @staticmethod
+    def _diagnostic_section(path: str) -> str | None:
+        """Classify only known API routes without exposing IDs or dates."""
+        parts = path.strip("/").split("/")
+        if parts == ["alunni"]:
+            return "students"
+        if len(parts) < 3 or parts[0] != "alunno" or not parts[1].isdigit():
+            return None
+
+        tail = parts[2:]
+        if tail == ["frazioni-temporali"]:
+            return "periods"
+        if len(tail) == 4 and tail[0] == "frazione-temporale" and tail[1].isdigit() and tail[2:] == ["voti", "materie"]:
+            return "votes"
+        if len(tail) == 3 and tail[:2] == ["compito", "elenco"]:
+            return "homework"
+        if len(tail) == 3 and tail[:2] == ["argomento-lezione", "elenco"]:
+            return "lessons"
+        if len(tail) == 1 and tail[0] in {
+            "eventi-classe", "eventi-classe-materia", "eventi-alunno"
+        }:
+            return "events"
+        if tail == ["assenze"]:
+            return "absences"
+        if tail == ["note"]:
+            return "notes"
+        if tail == ["notifiche", "conteggio"]:
+            return "notifications"
+        if tail == ["pagamenti"]:
+            return "payments"
+        return None
+
+    @staticmethod
+    def _diagnostic_value_kind(value: Any) -> str:
+        """Return a structural label only. Never convert data to text."""
+        if value is None:
+            return "null"
+        if isinstance(value, (str, list, dict)):
+            return f"{type(value).__name__}-{'nonempty' if value else 'empty'}"
+        return type(value).__name__
+
+    @classmethod
+    def _log_schema_diagnostic(cls, section: str, payload: Any) -> None:
+        """Log only an allowlisted field-presence summary of the first item."""
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+
+        values = payload.get("valori") if isinstance(payload, dict) and "valori" in payload else payload
+        sample = None
+        if isinstance(values, list):
+            sample = next((item for item in values if isinstance(item, dict)), None)
+        elif isinstance(values, dict):
+            sample = values
+
+        expected_fields = _SCHEMA_FIELDS[section]
+        present = (
+            ",".join(
+                f"{name}:{cls._diagnostic_value_kind(sample[name])}"
+                for name in expected_fields if name in sample
+            )
+            if sample is not None else "-"
+        )
+        other_field_count = (
+            len(set(sample) - set(expected_fields))
+            if sample is not None else 0
+        )
+        _LOGGER.debug(
+            "Nuvola API schema section=%s root=%s values=%s item=%s "
+            "allowlisted_fields=%s unclassified_field_count=%d",
+            section,
+            type(payload).__name__,
+            type(values).__name__,
+            "dict" if sample is not None else "absent",
+            present or "-",
+            other_field_count,
+        )
+
     async def _request(
         self,
         method: str,
@@ -502,6 +608,11 @@ class NuvolaApi:
         session = await self._ensure_session()
         headers = {"Authorization": f"Bearer {self.jwt}"}
         safe_endpoint = self._safe_endpoint(path)
+        diagnostic_section = (
+            self._diagnostic_section(path)
+            if _LOGGER.isEnabledFor(logging.DEBUG)
+            else None
+        )
 
         try:
             async with session.request(
@@ -510,6 +621,13 @@ class NuvolaApi:
                 params=params,
                 headers=headers,
             ) as resp:
+                if diagnostic_section is not None:
+                    _LOGGER.debug(
+                        "Nuvola API endpoint section=%s http_status=%d",
+                        diagnostic_section,
+                        resp.status,
+                    )
+
                 if resp.status == 401 and retry_auth:
                     self.jwt = None
                     await self.login()
@@ -537,7 +655,10 @@ class NuvolaApi:
                         f"Nuvola HTTP {resp.status} su {safe_endpoint}."
                     )
 
-                return await resp.json(content_type=None)
+                payload = await resp.json(content_type=None)
+                if diagnostic_section is not None:
+                    self._log_schema_diagnostic(diagnostic_section, payload)
+                return payload
 
         except (NuvolaAuthError, NuvolaApiError):
             raise
