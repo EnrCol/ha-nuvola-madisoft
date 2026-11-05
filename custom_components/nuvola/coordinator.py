@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import NuvolaApi, NuvolaApiError, NuvolaPermissionError
 from .const import COMPITI_DAYS, UPDATE_INTERVAL_MINUTES
+from .homework import homework_description
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -168,6 +169,7 @@ class NuvolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 for item in items:
                     item = dict(item)
+                    item["descrizione"] = homework_description(item)
                     item["_date"] = day.isoformat()
                     homework.append(item)
 
