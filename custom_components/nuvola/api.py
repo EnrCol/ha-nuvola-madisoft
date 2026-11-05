@@ -29,6 +29,10 @@ class NuvolaApiError(Exception):
     """Nuvola API error."""
 
 
+class NuvolaPermissionError(NuvolaApiError):
+    """The Nuvola API refused access to a resource."""
+
+
 class NuvolaApi:
     def __init__(self, hass, username: str, password: str) -> None:
         self.hass = hass
@@ -517,7 +521,7 @@ class NuvolaApi:
                     )
 
                 if resp.status == 403:
-                    raise NuvolaApiError(
+                    raise NuvolaPermissionError(
                         f"Nuvola HTTP 403: accesso negato su {safe_endpoint}."
                     )
 
@@ -568,15 +572,6 @@ class NuvolaApi:
             await self._request(
                 "GET",
                 f"/alunno/{student_id}/frazioni-temporali",
-                params={"contextAlunno": student_id},
-            )
-        )
-
-    async def get_votes(self, student_id: int) -> list[dict[str, Any]]:
-        return self.values(
-            await self._request(
-                "GET",
-                f"/alunno/{student_id}/voti",
                 params={"contextAlunno": student_id},
             )
         )

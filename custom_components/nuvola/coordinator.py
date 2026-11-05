@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.util import dt as dt_util
 
-from .api import NuvolaApi, NuvolaApiError
+from .api import NuvolaApi, NuvolaApiError, NuvolaPermissionError
 from .const import COMPITI_DAYS, UPDATE_INTERVAL_MINUTES
 
 
@@ -127,7 +127,6 @@ class NuvolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 periods[-1] if periods else None,
             )
 
-            votes = await self.api.get_votes(self.student_id)
             absences = await self.api.get_absences(self.student_id)
             notes = await self.api.get_notes(self.student_id)
             notifications = await self.api.get_notification_count(
@@ -135,15 +134,17 @@ class NuvolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
             subjects: list[dict[str, Any]] = []
+            votes_available = False
             if current_period and current_period.get("id") is not None:
                 try:
                     subjects = await self.api.get_subject_votes(
                         self.student_id,
                         int(current_period["id"]),
                     )
-                except NuvolaApiError as err:
+                    votes_available = True
+                except NuvolaPermissionError as err:
                     _LOGGER.warning(
-                        "Medie per materia non disponibili: %s",
+                        "Accesso ai voti negato: %s",
                         err,
                     )
 
@@ -197,11 +198,20 @@ class NuvolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except NuvolaApiError:
                 pass
 
-            visible_votes = [
-                vote
-                for vote in votes
-                if vote.get("visibile", True) is not False
-            ]
+            # The documented period/subject endpoint includes the individual
+            # votes. A successful empty list means zero votes; a 403 means
+            # the vote data is unknown, not zero.
+            visible_votes: list[dict[str, Any]] = []
+            for subject in subjects:
+                subject_votes = subject.get("voti", [])
+                if not isinstance(subject_votes, list):
+                    continue
+                for vote in subject_votes:
+                    if not isinstance(vote, dict) or vote.get("visibile", True) is False:
+                        continue
+                    item = dict(vote)
+                    item.setdefault("materia", subject.get("materia"))
+                    visible_votes.append(item)
 
             numeric_votes = [
                 number
@@ -255,6 +265,7 @@ class NuvolaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "periods": periods,
                 "current_period": current_period,
                 "votes": visible_votes,
+                "votes_available": votes_available,
                 "subjects": subjects,
                 "absences": absences,
                 "notes": notes,

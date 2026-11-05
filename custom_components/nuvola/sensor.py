@@ -242,7 +242,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 "vote_count",
                 "Numero voti",
                 "mdi:format-list-numbered",
-                lambda d: len(d.get("votes", [])),
+                lambda d: (
+                    len(d.get("votes", [])) if d.get("votes_available") else None
+                ),
             ),
             NuvolaSensor(
                 coordinator,
