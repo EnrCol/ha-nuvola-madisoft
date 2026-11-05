@@ -1,6 +1,12 @@
 """Regression tests for the homework description shapes Nuvola may return."""
 
-from custom_components.nuvola.homework import homework_description
+from pathlib import Path
+from runpy import run_path
+
+# Load this pure helper without importing Home Assistant's integration package.
+homework_description = run_path(
+    str(Path(__file__).resolve().parents[1] / "custom_components" / "nuvola" / "homework.py")
+)["homework_description"]
 
 
 def test_string_description():
