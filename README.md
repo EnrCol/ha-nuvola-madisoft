@@ -40,6 +40,23 @@ username e password. Se l'account ha più studenti, scegli quali aggiungere.
   cambiala sul sito e aggiornala nell'integrazione.
 - I sensori "Media" e "Ultimo voto" sono `unknown` finché non ci sono voti nel periodo corrente.
 
+## Diagnostica API protetta (facoltativa)
+
+La diagnostica introdotta nel fork \`EnrCol\` funziona esclusivamente con il logger
+\`custom_components.nuvola.api\` impostato su \`DEBUG\`. A livello di log normale
+non cambia il comportamento dell'integrazione.
+
+Per ogni endpoint **già interrogato** dall'integrazione, la diagnostica indica
+soltanto la categoria della richiesta, il codice HTTP, il tipo di struttura JSON
+e quali **nomi di campo prestabiliti nel codice** sono presenti, nulli o vuoti.
+Eventuali altri nomi di campo non sono registrati: è riportato solo il loro numero.
+Non vengono registrati identificativi, nomi degli studenti, date delle richieste,
+credenziali, token, URL completi, corpi di risposta, descrizioni o allegati.
+
+La diagnostica non esegue richieste aggiuntive. In particolare, gli argomenti
+delle lezioni (\`get_lessons\`) non saranno osservabili finché il coordinatore
+non utilizzerà quel metodo in una modifica successiva.
+
 ## Risoluzione dei problemi
 
 Se il login fallisce, il messaggio indica il passo che si è interrotto. Per più dettagli, in
